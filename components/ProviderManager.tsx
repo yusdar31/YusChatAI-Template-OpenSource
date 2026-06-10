@@ -108,23 +108,16 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
     setTestResult(null);
 
     try {
-      let url = form.baseURL.trim();
-      if (!url.endsWith('/')) url += '/';
-      if (!url.endsWith('v1/')) {
-        if (!url.includes('/v1')) url += 'v1';
-        url += '/';
-      }
-
-      const headers: Record<string, string> = {};
-      if (form.apiKey) {
-        headers['Authorization'] = `Bearer ${form.apiKey}`;
-      }
-
-      const res = await fetch(`${url}models`, { headers });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch('/api/fetch-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseURL: form.baseURL, apiKey: form.apiKey }),
+      });
 
       const data = await res.json();
-      const modelList: CustomModel[] = (data.data || data || []).map((m: { id?: string; name?: string }) => ({
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      const modelList: CustomModel[] = (data.data?.data || data.data || []).map((m: { id?: string; name?: string }) => ({
         id: m.id || m.name || String(m),
         name: m.name || m.id || String(m),
       }));
@@ -142,31 +135,26 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
     }
   };
 
-  const handleTestConnection = async (provider: CustomProvider) => {
-    setTestingId(provider.id);
+  const handleTestConnection = async (baseURL: string, apiKey: string) => {
+    setTestingId(baseURL);
     setTestResult(null);
 
     try {
-      let url = provider.baseURL;
-      if (!url.endsWith('/')) url += '/';
-      if (!url.endsWith('v1/')) {
-        if (!url.includes('/v1')) url += 'v1';
-        url += '/';
-      }
+      const res = await fetch('/api/fetch-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseURL, apiKey }),
+      });
 
-      const headers: Record<string, string> = {};
-      if (provider.apiKey) {
-        headers['Authorization'] = `Bearer ${provider.apiKey}`;
-      }
-
-      const res = await fetch(`${url}models`, { headers });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const count = (data.data || data || []).length;
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-      setTestResult({ id: provider.id, ok: true, msg: `Connected! ${count} models available` });
+      const models = data.data?.data || data.data || [];
+      const count = models.length;
+
+      setTestResult({ id: baseURL, ok: true, msg: `Connected! ${count} models available` });
     } catch (err) {
-      setTestResult({ id: provider.id, ok: false, msg: err instanceof Error ? err.message : 'Connection failed' });
+      setTestResult({ id: baseURL, ok: false, msg: err instanceof Error ? err.message : 'Connection failed' });
     } finally {
       setTestingId(null);
     }
@@ -243,7 +231,7 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
                       {fetchingModels ? 'Fetching...' : 'Fetch Models'}
                     </button>
                     <button
-                      onClick={() => handleTestConnection({ id: 'test', name: '', baseURL: form.baseURL, apiKey: form.apiKey, models: [], enabled: true })}
+                      onClick={() => handleTestConnection(form.baseURL, form.apiKey)}
                       disabled={!form.baseURL.trim()}
                       className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${darkMode ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'} disabled:opacity-50`}
                     >
@@ -320,12 +308,12 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
-                      onClick={() => handleTestConnection(provider)}
-                      disabled={testingId === provider.id}
+                      onClick={() => handleTestConnection(provider.baseURL, provider.apiKey)}
+                      disabled={testingId === provider.baseURL}
                       className={`p-1.5 rounded-lg text-xs transition-colors ${darkMode ? 'hover:bg-[#2a2a2a] text-gray-500 hover:text-emerald-400' : 'hover:bg-gray-200 text-gray-400 hover:text-emerald-600'} disabled:opacity-50`}
                       title="Test connection"
                     >
-                      {testingId === provider.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
+                      {testingId === provider.baseURL ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
                     </button>
                     <button onClick={() => startEdit(provider)} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-[#2a2a2a] text-gray-500 hover:text-gray-300' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'}`} title="Edit">
                       <Pencil className="w-4 h-4" />
@@ -337,7 +325,7 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
                 </div>
 
                 {/* Test result */}
-                {testResult && testResult.id === provider.id && (
+                {testResult && testResult.id === provider.baseURL && (
                   <div className={`mt-2 flex items-center gap-2 p-2 rounded-lg text-xs ${testResult.ok ? (darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') : (darkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600')}`}>
                     {testResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                     {testResult.msg}
@@ -412,7 +400,7 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
               {fetchingModels ? 'Fetching...' : 'Fetch Models'}
             </button>
             <button
-              onClick={() => handleTestConnection({ id: 'test', name: '', baseURL: form.baseURL, apiKey: form.apiKey, models: [], enabled: true })}
+              onClick={() => handleTestConnection(form.baseURL, form.apiKey)}
               disabled={!form.baseURL.trim()}
               className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${darkMode ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'} disabled:opacity-50`}
             >
