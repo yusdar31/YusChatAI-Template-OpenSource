@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -14,6 +14,10 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#10a37f",
+};
+
 export const metadata: Metadata = {
   title: "YusAI - Your Intelligent Assistant",
   description: "Chat with YusAI, your premium AI-powered assistant for coding, research, and creative work.",
@@ -21,7 +25,6 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
   },
   manifest: "/manifest.json",
-  themeColor: "#10a37f",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
