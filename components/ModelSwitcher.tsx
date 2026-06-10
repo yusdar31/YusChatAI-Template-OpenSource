@@ -5,6 +5,7 @@ import { Check, ChevronDown, Sparkles, Zap } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -89,7 +90,7 @@ export default function ModelSwitcher({ selectedModel, onModelChange, models, da
 
         {/* Grouped by provider */}
         {Object.entries(grouped.groups).map(([key, group]) => (
-          <div key={key}>
+          <DropdownMenuGroup key={key}>
             {hasGroups && <DropdownMenuSeparator className={darkMode ? 'bg-[#2a2a2a]' : 'bg-gray-200'} />}
             <DropdownMenuLabel className={`text-[11px] font-semibold ${darkMode ? 'text-gray-500' : 'text-gray-400'} uppercase tracking-wider px-3`}>
               {group.providerName}
@@ -111,7 +112,7 @@ export default function ModelSwitcher({ selectedModel, onModelChange, models, da
                 )}
               </DropdownMenuItem>
             ))}
-          </div>
+          </DropdownMenuGroup>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
