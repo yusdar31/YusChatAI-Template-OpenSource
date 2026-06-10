@@ -8,6 +8,7 @@ import ChatInput from '@/components/ChatInput';
 import TokenCounter from '@/components/TokenCounter';
 import Settings from '@/components/Settings';
 import UsageTracker from '@/components/UsageTracker';
+import { CustomProvider, loadCustomProviders } from '@/lib/provider-types';
 import { Sparkles, Menu, Code, FlaskConical, Plane, Wrench, Download, Sun, Moon, X, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
 
 interface Message {
@@ -90,6 +91,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'chat' | 'reasoning' | 'research' | 'image'>('chat');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [customProviders, setCustomProviders] = useState<CustomProvider[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -137,11 +139,27 @@ export default function Home() {
     }
   }, [darkMode]);
 
-  // Load models
+  // Load custom providers from localStorage
+  useEffect(() => {
+    setCustomProviders(loadCustomProviders());
+
+    const handleProvidersUpdated = () => {
+      setCustomProviders(loadCustomProviders());
+    };
+    window.addEventListener('providers-updated', handleProvidersUpdated);
+    return () => window.removeEventListener('providers-updated', handleProvidersUpdated);
+  }, []);
+
+  // Load models (merges config file + custom providers)
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const res = await fetch('/api/models');
+        const providers = loadCustomProviders();
+        const res = await fetch('/api/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customProviders: providers }),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.models && data.models.length > 0) {
@@ -154,7 +172,7 @@ export default function Home() {
       }
     };
     fetchModels();
-  }, []);
+  }, [customProviders]);
 
   // Smart auto scroll - only if user is near bottom
   useEffect(() => {
@@ -283,10 +301,13 @@ export default function Home() {
     const assistantMessage: Message = { id: generateId(), role: 'assistant', content: '', timestamp: new Date() };
     setMessages(prev => [...prev, assistantMessage]);
 
+    let assistantText = '';
+
     try {
       abortControllerRef.current = new AbortController();
       
       const savedSettings = JSON.parse(localStorage.getItem('yusai-settings') || '{}');
+      const providers = loadCustomProviders();
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -298,8 +319,7 @@ export default function Home() {
           systemPrompt: savedSettings.systemPrompt || undefined,
           temperature: savedSettings.temperature,
           maxTokens: savedSettings.maxTokens,
-          apiKey: savedSettings.apiKey || undefined,
-          apiBase: savedSettings.customApiBase || undefined,
+          customProviders: providers,
         }),
         signal: abortControllerRef.current.signal
       });
@@ -315,7 +335,6 @@ export default function Home() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let assistantText = '';
       let thinkingText = '';
       let buffer = '';
 
@@ -487,6 +506,7 @@ export default function Home() {
       abortControllerRef.current = new AbortController();
 
       const savedSettings = JSON.parse(localStorage.getItem('yusai-settings') || '{}');
+      const providers = loadCustomProviders();
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -497,8 +517,7 @@ export default function Home() {
           systemPrompt: savedSettings.systemPrompt || undefined,
           temperature: savedSettings.temperature,
           maxTokens: savedSettings.maxTokens,
-          apiKey: savedSettings.apiKey || undefined,
-          apiBase: savedSettings.customApiBase || undefined,
+          customProviders: providers,
         }),
         signal: abortControllerRef.current.signal
       });
@@ -596,6 +615,7 @@ export default function Home() {
       abortControllerRef.current = new AbortController();
 
       const savedSettings = JSON.parse(localStorage.getItem('yusai-settings') || '{}');
+      const providers = loadCustomProviders();
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -606,8 +626,7 @@ export default function Home() {
           systemPrompt: savedSettings.systemPrompt || undefined,
           temperature: savedSettings.temperature,
           maxTokens: savedSettings.maxTokens,
-          apiKey: savedSettings.apiKey || undefined,
-          apiBase: savedSettings.customApiBase || undefined,
+          customProviders: providers,
         }),
         signal: abortControllerRef.current.signal
       });

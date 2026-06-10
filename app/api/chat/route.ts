@@ -3,6 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+interface CustomProvider {
+  id: string;
+  name: string;
+  baseURL: string;
+  apiKey: string;
+  models: { id: string; name: string }[];
+  enabled: boolean;
+}
+
 function stripComments(content: string): string {
   return content.replace(/("([^"\\]|\\.)*")|\/\*[\s\S]*?\*\/|\/\/.*$/gm, (match, stringLiteral) => {
     if (stringLiteral) return match;
@@ -10,18 +19,8 @@ function stripComments(content: string): string {
   });
 }
 
-export async function POST(req: NextRequest) {
+function readConfigFile(): Record<string, any> {
   try {
-    const { messages, mode, model, systemPrompt, temperature, maxTokens, apiKey, apiBase } = await req.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: 'Invalid messages format' },
-        { status: 400 }
-      );
-    }
-
-    // Read config file to find providers and options
     const userProfile = process.env.USERPROFILE || process.env.HOME || os.homedir();
     const configDir = path.join(userProfile, '.config', 'opencode');
     const jsonPath = path.join(configDir, 'opencode.json');
@@ -34,46 +33,85 @@ export async function POST(req: NextRequest) {
       configPath = jsoncPath;
     }
 
-    let config: any = {};
     if (configPath) {
-      try {
-        const fileContent = fs.readFileSync(configPath, 'utf-8');
-        const cleanJson = stripComments(fileContent);
-        config = JSON.parse(cleanJson);
-      } catch (err) {
-        console.error('Failed to parse config file in chat route:', err);
+      const fileContent = fs.readFileSync(configPath, 'utf-8');
+      const cleanJson = stripComments(fileContent);
+      return JSON.parse(cleanJson);
+    }
+  } catch (err) {
+    console.error('Failed to read config file:', err);
+  }
+  return {};
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { messages, mode, model, systemPrompt, temperature, maxTokens, apiKey, apiBase, customProviders } = await req.json();
+
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json(
+        { error: 'Invalid messages format' },
+        { status: 400 }
+      );
+    }
+
+    const config = readConfigFile();
+
+    // Build custom provider map (id -> config)
+    const customProviderMap: Record<string, CustomProvider> = {};
+    if (Array.isArray(customProviders)) {
+      for (const cp of customProviders) {
+        if (cp.enabled) {
+          customProviderMap[cp.id] = cp;
+        }
       }
     }
 
     // Parse model parameter (e.g. "geekhub/gpt-5-4" or "9router/kr/claude-sonnet-4.5")
-    const modelParam = model || '9router/kr/claude-sonnet-4.5';
+    const modelParam = model || '';
 
-    // Handle load balancing mode
     let resolvedProviderName = '';
     let resolvedModel = '';
 
     if (modelParam === 'loadbalance/auto') {
-      const providers = config.provider || {};
-      const availableProviders = Object.entries(providers).filter(([key, val]: [string, any]) => {
-        return val.options?.apiKey && val.options?.baseURL;
-      });
+      // Collect all available providers (custom + config file)
+      const allAvailable: { baseURL: string; apiKey: string; providerName: string; model: string }[] = [];
 
-      if (availableProviders.length === 0) {
-        // Fallback to defaults
-        resolvedProviderName = '9router';
-        resolvedModel = 'kr/claude-sonnet-4.5';
-      } else {
-        // Pick a random provider
-        const [randProvider, randConfig]: [string, any] = availableProviders[Math.floor(Math.random() * availableProviders.length)];
-        const modelKeys = Object.keys(randConfig.models || {});
-        if (modelKeys.length > 0) {
-          const randModel = modelKeys[Math.floor(Math.random() * modelKeys.length)];
-          resolvedProviderName = randProvider;
-          resolvedModel = randModel;
-        } else {
-          resolvedProviderName = '9router';
-          resolvedModel = 'kr/claude-sonnet-4.5';
+      // Custom providers first
+      for (const cp of Object.values(customProviderMap)) {
+        for (const m of cp.models) {
+          allAvailable.push({
+            baseURL: cp.baseURL,
+            apiKey: cp.apiKey,
+            providerName: cp.id,
+            model: m.id,
+          });
         }
+      }
+
+      // Config file providers
+      const fileProviders = config.provider || {};
+      for (const [pName, pConfig] of Object.entries(fileProviders) as [string, any][]) {
+        if (pConfig.options?.baseURL && (pConfig.options?.apiKey || pConfig.options?.baseURL)) {
+          const modelKeys = Object.keys(pConfig.models || {});
+          for (const mKey of modelKeys) {
+            allAvailable.push({
+              baseURL: pConfig.options.baseURL,
+              apiKey: pConfig.options.apiKey || '',
+              providerName: pName,
+              model: mKey,
+            });
+          }
+        }
+      }
+
+      if (allAvailable.length > 0) {
+        const rand = allAvailable[Math.floor(Math.random() * allAvailable.length)];
+        resolvedProviderName = rand.providerName;
+        resolvedModel = rand.model;
+      } else {
+        resolvedProviderName = '_none';
+        resolvedModel = '';
       }
     } else {
       const firstSlashIndex = modelParam.indexOf('/');
@@ -81,15 +119,34 @@ export async function POST(req: NextRequest) {
         resolvedProviderName = modelParam.substring(0, firstSlashIndex);
         resolvedModel = modelParam.substring(firstSlashIndex + 1);
       } else {
-        resolvedProviderName = '9router';
+        resolvedProviderName = '_none';
         resolvedModel = modelParam;
       }
     }
 
-    const providerName = resolvedProviderName;
-    const providerConfig = config.provider?.[providerName] || {};
-    const resolvedBaseURL = apiBase || providerConfig.options?.baseURL || 'http://localhost:11434/v1';
-    const resolvedAPIKey = apiKey || providerConfig.options?.apiKey || '';
+    // Resolve baseURL and apiKey
+    let resolvedBaseURL = '';
+    let resolvedAPIKey = '';
+
+    // 1. Check custom providers first
+    if (customProviderMap[resolvedProviderName]) {
+      const cp = customProviderMap[resolvedProviderName];
+      resolvedBaseURL = cp.baseURL;
+      resolvedAPIKey = cp.apiKey;
+    }
+    // 2. Check config file
+    else if (config.provider?.[resolvedProviderName]) {
+      const providerConfig = config.provider[resolvedProviderName];
+      resolvedBaseURL = providerConfig.options?.baseURL || '';
+      resolvedAPIKey = providerConfig.options?.apiKey || '';
+    }
+
+    // 3. Apply request body overrides
+    if (apiBase) resolvedBaseURL = apiBase;
+    if (apiKey) resolvedAPIKey = apiKey;
+
+    // 4. Final fallback
+    if (!resolvedBaseURL) resolvedBaseURL = 'http://localhost:11434/v1';
 
     let selectedModel = resolvedModel;
     let messagesToSend = [...messages];
@@ -100,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Apply reasoning/research modes specifically to 9router models
-    if (providerName === '9router') {
+    if (resolvedProviderName === '9router') {
       if (mode === 'reasoning') {
         if (selectedModel.includes('claude-sonnet-4.5')) {
           selectedModel = 'kr/claude-sonnet-4.5-thinking';
@@ -152,35 +209,39 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`Routing request to: ${resolvedBaseURL}/chat/completions`);
-    console.log(`Using model: ${selectedModel} | Provider: ${providerName} | Mode: ${mode || 'default'}`);
-
-    const requestHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (resolvedAPIKey) {
-      requestHeaders['Authorization'] = `Bearer ${resolvedAPIKey}`;
-    }
+    console.log(`Using model: ${selectedModel} | Provider: ${resolvedProviderName} | Mode: ${mode || 'default'}`);
 
     // Build fallback list for loadbalance mode
-    const allProviders = config.provider || {};
     const fallbackTargets: { baseURL: string; apiKey: string; providerName: string; model: string }[] = [];
-    
+
     if (modelParam === 'loadbalance/auto') {
-      for (const [pName, pConfig] of Object.entries(allProviders) as [string, any][]) {
-        if (pConfig.options?.apiKey && pConfig.options?.baseURL) {
+      // Custom providers
+      for (const cp of Object.values(customProviderMap)) {
+        for (const m of cp.models) {
+          fallbackTargets.push({
+            baseURL: cp.baseURL,
+            apiKey: cp.apiKey,
+            providerName: cp.id,
+            model: m.id,
+          });
+        }
+      }
+      // Config file providers
+      const allFileProviders = config.provider || {};
+      for (const [pName, pConfig] of Object.entries(allFileProviders) as [string, any][]) {
+        if (pConfig.options?.baseURL && (pConfig.options?.apiKey || pConfig.options?.baseURL)) {
           const modelKeys = Object.keys(pConfig.models || {});
           for (const mKey of modelKeys) {
             fallbackTargets.push({
               baseURL: pConfig.options.baseURL,
-              apiKey: pConfig.options.apiKey,
+              apiKey: pConfig.options.apiKey || '',
               providerName: pName,
               model: mKey,
             });
           }
         }
       }
-      // Shuffle fallback targets
+      // Shuffle
       for (let i = fallbackTargets.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [fallbackTargets[i], fallbackTargets[j]] = [fallbackTargets[j], fallbackTargets[i]];
@@ -190,15 +251,15 @@ export async function POST(req: NextRequest) {
     // Try primary, then fallbacks
     let response: Response | null = null;
     let lastError = '';
-    let usedProvider = providerName;
-    let usedModel = selectedModel;
 
     const tryTargets = [
-      { baseURL: resolvedBaseURL, apiKey: resolvedAPIKey, providerName, model: selectedModel },
-      ...fallbackTargets.filter(t => !(t.providerName === providerName && t.model === selectedModel)),
+      { baseURL: resolvedBaseURL, apiKey: resolvedAPIKey, providerName: resolvedProviderName, model: selectedModel },
+      ...fallbackTargets.filter(t => !(t.providerName === resolvedProviderName && t.model === selectedModel)),
     ];
 
     for (const target of tryTargets) {
+      if (!target.baseURL) continue;
+
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (target.apiKey) headers['Authorization'] = `Bearer ${target.apiKey}`;
 
@@ -219,9 +280,7 @@ export async function POST(req: NextRequest) {
 
         if (res.ok) {
           response = res;
-          usedProvider = target.providerName;
-          usedModel = target.model;
-          console.log(`Success with: ${usedProvider}/${usedModel}`);
+          console.log(`Success with: ${target.providerName}/${target.model}`);
           break;
         } else {
           const errText = await res.text();
@@ -236,7 +295,7 @@ export async function POST(req: NextRequest) {
 
     if (!response) {
       return NextResponse.json(
-        { error: `All providers failed. Last error: ${lastError}` },
+        { error: lastError || 'No providers available. Add a provider in Settings > Providers.' },
         { status: 502 }
       );
     }
@@ -286,7 +345,7 @@ export async function POST(req: NextRequest) {
                   if (content) {
                     controller.enqueue(encoder.encode(content));
                   }
-                } catch (e) {
+                } catch {
                   // Ignore parsing error on partial/malformed lines
                 }
               }

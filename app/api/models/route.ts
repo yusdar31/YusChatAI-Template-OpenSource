@@ -1,7 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+interface CustomProvider {
+  id: string;
+  name: string;
+  baseURL: string;
+  apiKey: string;
+  models: { id: string; name: string }[];
+  enabled: boolean;
+}
+
+interface ModelItem {
+  id: string;
+  name: string;
+  providerId: string;
+  providerName: string;
+}
 
 function stripComments(content: string): string {
   return content.replace(/("([^"\\]|\\.)*")|\/\*[\s\S]*?\*\/|\/\/.*$/gm, (match, stringLiteral) => {
@@ -10,7 +26,7 @@ function stripComments(content: string): string {
   });
 }
 
-export async function GET() {
+function readConfigFile(): Record<string, any> {
   try {
     const userProfile = process.env.USERPROFILE || process.env.HOME || os.homedir();
     const configDir = path.join(userProfile, '.config', 'opencode');
@@ -24,65 +40,105 @@ export async function GET() {
       configPath = jsoncPath;
     }
 
-    console.log('Searching config file in:', configDir);
-
     if (configPath) {
-      try {
-        console.log('Found config file at:', configPath);
-        const fileContent = fs.readFileSync(configPath, 'utf-8');
-        const cleanJson = stripComments(fileContent);
-        const config = JSON.parse(cleanJson);
+      const fileContent = fs.readFileSync(configPath, 'utf-8');
+      const cleanJson = stripComments(fileContent);
+      return JSON.parse(cleanJson);
+    }
+  } catch (err) {
+    console.error('Failed to read config file:', err);
+  }
+  return {};
+}
 
-        const providers = config.provider || {};
-        const modelsList: { id: string; name: string }[] = [];
+function extractModelsFromConfig(config: any): ModelItem[] {
+  const providers = config.provider || {};
+  const modelsList: ModelItem[] = [];
 
-        for (const [providerKey, providerVal] of Object.entries(providers)) {
-          const p = providerVal as any;
-          const modelsMap = p.models || {};
+  for (const [providerKey, providerVal] of Object.entries(providers)) {
+    const p = providerVal as any;
+    const providerName = p.name || providerKey;
+    const modelsMap = p.models || {};
 
-          for (const [modelKey, modelVal] of Object.entries(modelsMap)) {
-            const m = modelVal as any;
-            const modelName = m.name || modelKey;
+    for (const [modelKey, modelVal] of Object.entries(modelsMap)) {
+      const m = modelVal as any;
+      modelsList.push({
+        id: `${providerKey}/${modelKey}`,
+        name: m.name || modelKey,
+        providerId: providerKey,
+        providerName,
+      });
+    }
+  }
 
-            // Format ID: "provider/model_id" (e.g. "geekhub/gpt-5-4")
-            const id = `${providerKey}/${modelKey}`;
-            const name = modelName;
+  return modelsList;
+}
 
-            modelsList.push({ id, name });
-          }
-        }
+function extractModelsFromCustomProviders(customProviders: CustomProvider[]): ModelItem[] {
+  const modelsList: ModelItem[] = [];
 
-        // Add load balance option at the top
-        if (modelsList.length > 1) {
-          modelsList.unshift({ id: 'loadbalance/auto', name: 'Auto (Load Balance)' });
-        }
+  for (const provider of customProviders) {
+    if (!provider.enabled) continue;
 
-        if (modelsList.length > 0) {
-          console.log(`Successfully loaded ${modelsList.length} models from config:`, modelsList);
-          return NextResponse.json({ models: modelsList, source: 'config_file' });
-        }
-      } catch (parseErr) {
-        console.error('Failed to parse config file:', parseErr);
+    for (const model of provider.models) {
+      modelsList.push({
+        id: `${provider.id}/${model.id}`,
+        name: model.name,
+        providerId: provider.id,
+        providerName: provider.name,
+      });
+    }
+  }
+
+  return modelsList;
+}
+
+export async function GET() {
+  try {
+    const config = readConfigFile();
+    const configModels = extractModelsFromConfig(config);
+
+    if (configModels.length > 0) {
+      const modelsList = [...configModels];
+      if (modelsList.length > 1) {
+        modelsList.unshift({ id: 'loadbalance/auto', name: 'Auto (Load Balance)', providerId: 'loadbalance', providerName: 'Load Balance' });
       }
-    } else {
-      console.log('Config file not found in home folder.');
+      return NextResponse.json({ models: modelsList, source: 'config_file' });
+    }
+  } catch (err) {
+    console.error('Error in GET /api/models:', err);
+  }
+
+  const defaultModels: ModelItem[] = [
+    { id: 'loadbalance/auto', name: 'Auto (Load Balance)', providerId: 'loadbalance', providerName: 'Load Balance' },
+  ];
+  return NextResponse.json({ models: defaultModels, source: 'hardcoded_defaults' });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { customProviders } = await req.json();
+
+    const config = readConfigFile();
+    const configModels = extractModelsFromConfig(config);
+    const customModels = customProviders ? extractModelsFromCustomProviders(customProviders) : [];
+
+    // Custom providers take precedence (override config models with same provider ID)
+    const customProviderIds = new Set((customProviders || []).map((p: CustomProvider) => p.id));
+    const filteredConfigModels = configModels.filter(m => !customProviderIds.has(m.providerId));
+
+    const mergedModels = [...customModels, ...filteredConfigModels];
+
+    if (mergedModels.length > 1) {
+      mergedModels.unshift({ id: 'loadbalance/auto', name: 'Auto (Load Balance)', providerId: 'loadbalance', providerName: 'Load Balance' });
     }
 
-    // Default emergency list
-    const defaultModels = [
-      { id: 'loadbalance/auto', name: 'Auto (Load Balance)' },
-      { id: '9router/kr/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
-      { id: 'geekhub/gpt-5-4', name: 'GPT-5.4' },
-      { id: 'geekhub/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
-      { id: 'geekhub/claude-opus-4-6', name: 'Claude Opus 4.6' },
-    ];
-    console.log('Returning emergency default model list.');
-    return NextResponse.json({ models: defaultModels, source: 'hardcoded_defaults' });
-  } catch (error) {
-    console.error('Error in models API:', error);
-    return NextResponse.json(
-      { error: 'Internal server error while resolving models' },
-      { status: 500 }
-    );
+    const source = customModels.length > 0 && filteredConfigModels.length > 0 ? 'merged' :
+                   customModels.length > 0 ? 'custom' : 'config_file';
+
+    return NextResponse.json({ models: mergedModels, source });
+  } catch (err) {
+    console.error('Error in POST /api/models:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
