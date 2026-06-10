@@ -1,36 +1,155 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YusAI - Open Source Web AI Chat
 
-## Getting Started
+A modern, feature-rich AI chat interface built with Next.js. Connect to any OpenAI-compatible API provider and enjoy a premium chatting experience.
 
-First, run the development server:
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38BDF8)
+
+## Features
+
+- **Multi-Provider Support** - Connect to any OpenAI-compatible API (OpenAI, Anthropic via proxy, local models, etc.)
+- **Smart Load Balancing** - Automatic failover across multiple providers
+- **3 Chat Modes** - Chat, Thinking (reasoning), and Research (agentic)
+- **System Prompts** - Custom instructions with preset templates
+- **Chat Folders** - Organize conversations into folders
+- **Full-Text Search** - Search through all chat messages
+- **Share via URL** - Generate shareable links for conversations
+- **Voice Input** - Speech-to-text using Web Speech API
+- **Usage Tracking** - Monitor token usage and request statistics
+- **Dark/Light Mode** - Beautiful theme switching
+- **PWA Support** - Installable as a native app
+- **Export to Markdown** - Download conversations as .md files
+- **Code Syntax Highlighting** - With copy-to-clipboard
+- **Thinking Blocks** - Visualize AI reasoning process
+- **Image & File Attachments** - Paste or upload files
+- **Responsive Design** - Works on desktop and mobile
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm, yarn, or pnpm
+
+### Installation
+
+```bash
+git clone https://github.com/yourusername/yusai-chat.git
+cd yusai-chat
+npm install
+```
+
+### Configuration
+
+1. Create a config file at `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "provider": {
+    "openai": {
+      "name": "OpenAI",
+      "options": {
+        "baseURL": "https://api.openai.com/v1",
+        "apiKey": "sk-your-api-key"
+      },
+      "models": {
+        "gpt-4o": { "name": "GPT-4o" },
+        "gpt-4o-mini": { "name": "GPT-4o Mini" }
+      }
+    }
+  }
+}
+```
+
+2. Or configure directly in the app via **Settings** (gear icon).
+
+### Run Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build & Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## API Provider Format
 
-To learn more about Next.js, take a look at the following resources:
+Any provider that implements the OpenAI chat completions API format works:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+POST {baseURL}/chat/completions
+Authorization: Bearer {apiKey}
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+{
+  "model": "model-name",
+  "messages": [...],
+  "stream": true
+}
+```
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Technology | Purpose |
+|-----------|---------|
+| Next.js 16 | Framework |
+| React 19 | UI |
+| TypeScript | Type safety |
+| Tailwind CSS 4 | Styling |
+| shadcn/ui | UI components |
+| Lucide Icons | Icons |
+| react-markdown | Markdown rendering |
+| react-syntax-highlighter | Code blocks |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+├── app/
+│   ├── api/
+│   │   ├── chat/route.ts       # Chat completions proxy
+│   │   └── models/route.ts     # Model discovery
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/
+│   ├── ChatInput.tsx           # Input with voice, file attach
+│   ├── ChatMessages.tsx        # Message rendering
+│   ├── ModelSwitcher.tsx       # Model selection dropdown
+│   ├── Settings.tsx            # Settings panel
+│   ├── Sidebar.tsx             # Chat history & folders
+│   ├── TokenCounter.tsx        # Token estimation
+│   ├── UsageTracker.tsx        # Usage statistics
+│   └── ui/                     # shadcn components
+├── lib/
+│   └── utils.ts
+└── public/
+    ├── manifest.json           # PWA manifest
+    ├── sw.js                   # Service worker
+    └── icons/                  # App icons
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- Built with [Next.js](https://nextjs.org/)
+- UI inspired by modern chat interfaces
+- Icons from [Lucide](https://lucide.dev/)
