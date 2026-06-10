@@ -240,7 +240,7 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
                   </div>
 
                   {/* Test result */}
-                  {testResult && testResult.id === 'fetch' && (
+                  {testResult && (testResult.id === 'fetch' || testResult.id === form.baseURL) && (
                     <div className={`flex items-center gap-2 p-2 rounded-lg text-xs ${testResult.ok ? (darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') : (darkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600')}`}>
                       {testResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                       {testResult.msg}
@@ -409,7 +409,7 @@ export default function ProviderManager({ providers, onChange, darkMode }: Provi
           </div>
 
           {/* Test result */}
-          {testResult && testResult.id === 'fetch' && (
+          {testResult && (testResult.id === 'fetch' || testResult.id === form.baseURL) && (
             <div className={`flex items-center gap-2 p-2 rounded-lg text-xs ${testResult.ok ? (darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') : (darkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600')}`}>
               {testResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
               {testResult.msg}
