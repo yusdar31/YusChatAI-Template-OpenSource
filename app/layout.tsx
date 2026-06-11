@@ -53,6 +53,13 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
+                  navigator.serviceWorker.getRegistrations().then((registrations) => {
+                    for (const reg of registrations) {
+                      if (reg.active && reg.active.scriptURL.includes('sw.js')) {
+                        reg.unregister();
+                      }
+                    }
+                  });
                   navigator.serviceWorker.register('/sw.js').catch(() => {});
                 });
               }

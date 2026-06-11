@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yusai-v1';
+const CACHE_NAME = 'yusai-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -30,11 +30,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Skip non-GET requests
   if (request.method !== 'GET') return;
-
-  // Skip API requests
   if (request.url.includes('/api/')) return;
+
+  // Skip navigation requests (auth redirects, login page, etc)
+  if (request.mode === 'navigate') return;
 
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
@@ -43,12 +43,10 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(request).then((response) => {
-        // Don't cache non-success responses
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
 
-        // Clone the response
         const responseToCache = response.clone();
 
         caches.open(CACHE_NAME).then((cache) => {
@@ -56,6 +54,8 @@ self.addEventListener('fetch', (event) => {
         });
 
         return response;
+      }).catch(() => {
+        return new Response('', { status: 408 });
       });
     })
   );
