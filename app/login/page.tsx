@@ -1,18 +1,24 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Loader2, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const registered = searchParams.get('registered') === 'true'
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [registered, setRegistered] = useState(false)
+
+  // Check URL on mount
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('registered') === 'true' && !registered) {
+      setRegistered(true)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -135,25 +141,16 @@ function LoginForm() {
           <div className="mt-6 pt-6 border-t border-[#2a2a2a] text-center">
             <p className="text-sm text-gray-500">
               Don&apos;t have an account?{' '}
-              <Link href="/register" className="text-emerald-500 hover:text-emerald-400 font-medium">
+              <button
+                onClick={() => router.push('/register')}
+                className="text-emerald-500 hover:text-emerald-400 font-medium"
+              >
                 Sign up
-              </Link>
+              </button>
             </p>
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#171717] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
   )
 }

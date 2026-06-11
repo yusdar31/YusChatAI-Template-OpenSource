@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Loader2 } from 'lucide-react'
-import Link from 'next/link'
 import { registerUser } from '@/app/actions/auth'
 
 export default function RegisterPage() {
@@ -151,9 +150,12 @@ export default function RegisterPage() {
           <div className="mt-6 pt-6 border-t border-[#2a2a2a] text-center">
             <p className="text-sm text-gray-500">
               Already have an account?{' '}
-              <Link href="/login" className="text-emerald-500 hover:text-emerald-400 font-medium">
+              <button
+                onClick={() => router.push('/login')}
+                className="text-emerald-500 hover:text-emerald-400 font-medium"
+              >
                 Sign in
-              </Link>
+              </button>
             </p>
           </div>
         </div>
