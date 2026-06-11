@@ -9,6 +9,7 @@ import TokenCounter from '@/components/TokenCounter';
 import Settings from '@/components/Settings';
 import UsageTracker from '@/components/UsageTracker';
 import { CustomProvider, loadCustomProviders } from '@/lib/provider-types';
+import UserMenu from '@/components/UserMenu';
 import { Sparkles, Menu, Code, FlaskConical, Plane, Wrench, Download, Sun, Moon, X, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
 
 interface Message {
@@ -856,6 +857,7 @@ export default function Home() {
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <UserMenu darkMode={darkMode} />
           </div>
         </div>
 
