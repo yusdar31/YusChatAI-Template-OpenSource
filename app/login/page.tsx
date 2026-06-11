@@ -1,24 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { Sparkles, Loader2, CheckCircle } from 'lucide-react'
-import Link from 'next/link'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
 
-  // Check URL on mount
-  if (typeof window !== 'undefined') {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('registered') === 'true' && !registered) {
+    if (params.get('registered') === 'true') {
       setRegistered(true)
     }
-  }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -40,8 +36,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError('Invalid email or password')
     } else {
-      router.push('/')
-      router.refresh()
+      window.location.href = '/'
     }
   }
 
@@ -142,7 +137,7 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500">
               Don&apos;t have an account?{' '}
               <button
-                onClick={() => router.push('/register')}
+                onClick={() => window.location.href = '/register'}
                 className="text-emerald-500 hover:text-emerald-400 font-medium"
               >
                 Sign up

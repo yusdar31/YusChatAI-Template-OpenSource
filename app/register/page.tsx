@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { registerUser } from '@/app/actions/auth'
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -34,7 +32,7 @@ export default function RegisterPage() {
       return
     }
 
-    router.push('/login?registered=true')
+    window.location.href = '/login?registered=true'
   }
 
   return (
@@ -151,7 +149,7 @@ export default function RegisterPage() {
             <p className="text-sm text-gray-500">
               Already have an account?{' '}
               <button
-                onClick={() => router.push('/login')}
+                onClick={() => window.location.href = '/login'}
                 className="text-emerald-500 hover:text-emerald-400 font-medium"
               >
                 Sign in
