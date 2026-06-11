@@ -18,6 +18,15 @@ export default function RegisterPage() {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
+    const password = formData.get('password') as string
+    const confirmPassword = formData.get('confirmPassword') as string
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      setLoading(false)
+      return
+    }
+
     const result = await registerUser(formData)
 
     if (result.error) {
@@ -26,14 +35,7 @@ export default function RegisterPage() {
       return
     }
 
-    // Auto sign-in after successful registration
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
-    await signIn('credentials', {
-      email,
-      password,
-      callbackUrl: '/',
-    })
+    router.push('/login?registered=true')
   }
 
   return (
@@ -90,6 +92,18 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 placeholder="At least 6 characters"
+                className="w-full px-3 py-2.5 rounded-lg bg-[#171717] border border-[#2a2a2a] text-gray-200 placeholder-gray-600 text-sm outline-none focus:border-emerald-500/50 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-400 mb-1 block">Confirm Password</label>
+              <input
+                name="confirmPassword"
+                type="password"
+                required
+                minLength={6}
+                placeholder="Repeat your password"
                 className="w-full px-3 py-2.5 rounded-lg bg-[#171717] border border-[#2a2a2a] text-gray-200 placeholder-gray-600 text-sm outline-none focus:border-emerald-500/50 transition-colors"
               />
             </div>

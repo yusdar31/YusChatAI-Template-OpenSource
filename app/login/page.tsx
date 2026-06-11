@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const registered = searchParams.get('registered') === 'true'
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -56,6 +59,13 @@ export default function LoginPage() {
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
               {error}
+            </div>
+          )}
+
+          {registered && (
+            <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Account created successfully! Please sign in.
             </div>
           )}
 
@@ -133,5 +143,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#171717] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
